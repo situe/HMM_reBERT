@@ -74,5 +74,5 @@ for fileName in os.listdir(f"/mnt/storage/grid/var/pullin_data/prism"):
     else:
         fileCounter += 1
         continue
-with open(f"/mnt/storage/grid/home/eric/hmm2bert/parsed_pullin_data/{writeFile}", "r+") as json_file:
+with open(f"/mnt/storage/grid/home/eric/hmm2bert/pullin_parsed_data/{writeFile}", "r+") as json_file:
     json.dump(listWrapper, json_file)

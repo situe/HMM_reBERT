@@ -45,8 +45,8 @@ class BertTokClassification(pl.LightningModule, ABC):
         if pretrained_dir is None:
             self.bert = BertForTokenClassification(config, **kwargs)
         else:
-            self.bert = MultiOutputClassifier(BertForTokenClassification.from_pretrained(pretrained_dir, **kwargs))
-            self.bertParam = BertForTokenClassification.from_pretrained(pretrained_dir, **kwargs)
+            self.bert = MultiOutputClassifier(BertForTokenClassification.from_pretrained(pretrained_dir, **kwargs)) #wrapped pretrained in MultiOutputClassifier
+            self.bertParam = BertForTokenClassification.from_pretrained(pretrained_dir, **kwargs) #added this so i could call the model's parameters
 
     def forward(self, input_ids, attention_mask, labels):
         return self.bert(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
@@ -91,7 +91,7 @@ class BertTokClassification(pl.LightningModule, ABC):
     def configure_optimizers(self):
         if self.use_adafactor:
             return Adafactor(
-                self.bertParam.parameters(),
+                self.bertParam.parameters(), #used self.bertParam.parameters() instead of self.parameters()
                 lr=self.learning_rate,
                 eps=(1e-30, 1e-3),
                 clip_threshold=1.0,
@@ -124,108 +124,7 @@ class BertTokClassification(pl.LightningModule, ABC):
             return all_last_attention_heads
         return output.attentions
 
-# class BertTokClassification1(pl.LightningModule, ABC):
-#     def __init__(
-#             self,
-#             config: BertConfig = None,
-#             pretrained_dir: str = "Rostlab/prot_bert",
-#             use_adafactor: bool = True,
-#             learning_rate="1e-7.473",
-#             **kwargs
-#     ):
-#         super().__init__()
-#         self.learning_rate = learning_rate
-#         self.use_adafactor = use_adafactor
-#         if pretrained_dir is None:
-#             self.bert = BertForTokenClassification(config, **kwargs)
-#         else:
-#             self.bert = pretrained_dir
-#
-#     def forward(self, input_ids, attention_mask, labels):
-#         return self.bert(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
-#
-#     def training_step(self, batch, batch_idx):
-#         input_ids = batch["input_ids"]
-#         attention_mask = batch["attention_mask"]
-#         labels = batch["labels"]
-#         outputs = self(
-#             input_ids=input_ids.to(self.device),
-#             attention_mask=attention_mask.to(self.device),
-#             labels=labels.to(self.device)
-#         )
-#         loss = outputs.loss
-#         self.log(
-#             "train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True
-#         )
-#         return {"loss": loss}
-#
-#     def validation_step(self, batch, batch_idx):
-#         input_ids = batch["input_ids"]
-#         attention_mask = batch["attention_mask"]
-#         labels = batch["labels"]
-#         outputs = self(
-#             input_ids=input_ids.to(self.device),
-#             attention_mask=attention_mask.to(self.device),
-#             labels=labels.to(self.device)
-#         )
-#         loss = outputs.loss
-#         self.log(
-#             "val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True
-#         )
-#
-#         def get_balanced_accuracy(labels, logits):
-#             y_pred = torch.max(logits, 1).indices
-#             score = balanced_accuracy_score(labels, y_pred)
-#             return score
-#
-#
-#         accuracy = get_balanced_accuracy(labels.cpu(), logits=outputs.logits.cpu())
-#         self.log(
-#             "accuracy",
-#             accuracy,
-#             on_step=False,
-#             on_epoch=True,
-#             prog_bar=True,
-#             logger=True,
-#         )
-#         return {"val_loss": loss}
-#
-#     def configure_optimizers(self):
-#         return Adafactor(
-#             self.parameters(),
-#             lr=self.learning_rate,
-#             eps=(1e-30, 1e-3),
-#             clip_threshold=1.0,
-#             decay_rate=-0.8,
-#             beta1=None,
-#             weight_decay=0.0,
-#             relative_step=False,
-#             scale_parameter=False,
-#             warmup_init=False)
-#
-#
-#     def save_pretrained(self, pretrained_dir):
-#         self.bert.save_pretrained(self, pretrained_dir)
-#
-#     def predict_classes(self, input_ids, attention_mask, return_logits=False):
-#         output = self.bert(input_ids=input_ids.to(self.device), attention_mask=attention_mask)
-#         if return_logits:
-#             return output.logits
-#         else:
-#             probabilities = F.softmax(output.logits)
-#             predictions = torch.argmax(probabilities)
-#             return {"probabilities": probabilities, "predictions": predictions}
-#
-#     def get_attention(self, input_ids, attention_mask, specific_attention_head: int = None):
-#         output = self.bert(inputs_ids=input_ids.to(self.device), attention_mask=attention_mask)
-#         if specific_attention_head is not None:
-#             last_layer = output.attentions[-1] #grabs the last layer
-#             all_last_attention_heads = [torch.max(this_input[specific_attention_head], axis=0)[0].indices for this_input in last_layer]
-#             return all_last_attention_heads
-#         return output.attentions
-#
-# class MultiOutputClass(BertTokClassification1):
-#     pass
+
 
 
 
@@ -269,8 +168,7 @@ def main():
     encoded_train = torch.load(strat_train_path)
     encoded_test = torch.load(strat_val_path)
     bsc = BertTokClassification(pretrained_dir='Rostlab/prot_bert', use_adafactor=True, num_labels=num_labels)
-    # new = MultiOutputClassifier(bsc1)
-    # bsc = MultiOutputClass(pretrained_dir=new, use_adafactor=True, num_labels=num_labels)
+
 
     #setup checkpoint callback
 
