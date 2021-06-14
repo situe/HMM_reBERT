@@ -112,7 +112,7 @@ class BertTokClassification(pl.LightningModule, ABC):
         if return_logits:
             return output.logits
         else:
-            probabilities = F.softmax(output.logits)
+            probabilities = F.sigmoid(output.logits)
             predictions = torch.argmax(probabilities)
             return {"probabilities": probabilities, "predictions": predictions}
 

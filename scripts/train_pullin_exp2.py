@@ -35,7 +35,7 @@ class BertTokClassification(pl.LightningModule, ABC):
             self,
             config: BertConfig = None,
             pretrained_dir: str = None,
-            use_adafactor: bool = False,
+            use_adafactor: bool = True,
             learning_rate=3e-5,
             **kwargs
     ):
@@ -45,7 +45,8 @@ class BertTokClassification(pl.LightningModule, ABC):
         if pretrained_dir is None:
             self.bert = BertForTokenClassification(config, **kwargs)
         else:
-            self.bert = BertForTokenClassification.from_pretrained(pretrained_dir, **kwargs)
+            self.bert = BertForTokenClassification.from_pretrained(pretrained_dir, **kwargs) #wrapped pretrained in MultiOutputClassifier
+            # self.bertParam = BertForTokenClassification.from_pretrained(pretrained_dir, **kwargs) #added this so i could call the model's parameters
 
     def forward(self, input_ids, attention_mask, labels):
         return self.bert(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
@@ -90,7 +91,7 @@ class BertTokClassification(pl.LightningModule, ABC):
     def configure_optimizers(self):
         if self.use_adafactor:
             return Adafactor(
-                self.parameters(),
+                self.parameters(), #used self.bertParam.parameters() instead of self.parameters()
                 lr=self.learning_rate,
                 eps=(1e-30, 1e-3),
                 clip_threshold=1.0,
@@ -104,7 +105,7 @@ class BertTokClassification(pl.LightningModule, ABC):
             return AdamW(self.parameters(), lr=self.learning_rate)
 
     def save_pretrained(self, pretrained_dir):
-        self.bert.save_pretrained(self, prtrained_dir)
+        self.bert.save_pretrained(self, pretrained_dir)
 
     def predict_classes(self, input_ids, attention_mask, return_logits=False):
         output = self.bert(input_ids=input_ids.to(self.device), attention_mask=attention_mask)
@@ -124,6 +125,10 @@ class BertTokClassification(pl.LightningModule, ABC):
         return output.attentions
 
 
+
+
+
+
 def main():
 
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -136,7 +141,7 @@ def main():
     wandb_name = f"pullin-{lr}-mxepch10"
     num_labels = 430
     max_epch = 10
-    gpus = '0, 1'
+    gpus = '4, 5'
 
     data_folder = "pullin_parsed_data"
     strat_train_name = "embedding_pullin_train>100_stratified.pt"
@@ -162,37 +167,40 @@ def main():
 
     encoded_train = torch.load(strat_train_path)
     encoded_test = torch.load(strat_val_path)
-    bsc = BertTokClassification(pretrained_dir='Rostlab/prot_bert', use_adafactor=True, num_labels=num_labels)
+    bsc1 = BertTokClassification(pretrained_dir='Rostlab/prot_bert', use_adafactor=True, num_labels=num_labels, learning_rate=lr)
+    bsc = MultiOutputClassifier(bsc1)
 
     #setup checkpoint callback
 
-    checkpoint_callback = ModelCheckpoint(
-        monitor='val_loss_epoch',
-        dirpath=f'/mnt/storage/grid/home/eric/hmm2bert/models/{model_folder}',
-        filename='pullin_best_loss',
-        save_top_k=3,
-        mode='min'
-    )
-
-    #setup data collator, trainer, and dataloader for train and val dataset
-
-    data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
-    trainer = Trainer(
-        max_epochs=max_epch,
-        gpus=gpus,
-        auto_lr_find=False,
-        logger=wandb_logger,
-        accelerator="ddp",
-        callbacks=[checkpoint_callback]
-    ) #
+    # checkpoint_callback = ModelCheckpoint(
+    #     monitor='val_loss_epoch',
+    #     dirpath=f'/mnt/storage/grid/home/eric/hmm2bert/models/{model_folder}',
+    #     filename='pullin_best_loss',
+    #     save_top_k=3,
+    #     mode='min'
+    # )
+    #
+    # #setup data collator, trainer, and dataloader for train and val dataset
+    #
+    # data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
+    # trainer = Trainer(
+    #     max_epochs=max_epch,
+    #     gpus=gpus,
+    #     auto_lr_find=False,
+    #     logger=wandb_logger,
+    #     accelerator="ddp",
+    #     callbacks=[checkpoint_callback]
+    # ) #
     warnings.filterwarnings("ignore")
 
     train_dl = DataLoader(encoded_train, batch_size=4, num_workers=num_cpu, collate_fn=data_collator, shuffle=True)
     eval_dl = DataLoader(encoded_test, batch_size=4, num_workers=num_cpu, collate_fn=data_collator, shuffle=False)
 
+    bsc.fit(train_dl)
+
     #train and save classifier as checkpoint
     #trainer.tune(bsc, train_dataloader=[train_dl], val_dataloaders=[eval_dl])
-    trainer.fit(bsc, train_dataloader=train_dl, val_dataloaders=eval_dl)
+    # trainer.fit(bsc, train_dataloader=train_dl, val_dataloaders=eval_dl)
     #trainer.save_checkpoint(save_checkpoint_path)
 
 
