@@ -4,8 +4,8 @@ from transformers import BertTokenizer
 import torch
 
 
-#load encoded csv
-def split_anno_tok(csvfilepath, filenamepath, which_split): #takes encoded csv path, path to save, which split either "train" or "val"
+# load encoded csv
+def split_anno_tok(csvfilepath, filenamepath, which_split):  # takes encoded csv path, path to save, which split either "train" or "val"
 
     # create dataset object
     class TokenDataset(torch.utils.data.Dataset):
@@ -209,7 +209,8 @@ def split_anno_tok(csvfilepath, filenamepath, which_split): #takes encoded csv p
         return print("Please select split by entering \"Train\"/\"train\" or \"Val\"/\"val\"")
 
 
-csvfilepath = f"/mnt/storage/grid/home/eric/hmm2bert/pullin_parsed_data/encoded_parsed_pullin_noDupes>100_withAA_not_domain.csv"
-filenamepath = f"/mnt/storage/grid/home/eric/hmm2bert/pullin_parsed_data/embedding_pullin_noDupes_train>100_stratified_domainPiece.pt"
+csvFilePath = "/mnt/storage/grid/home/eric/hmm2bert/pullin_parsed_data/encoded_parsed_pullin_noDupes>100_withAA_not_domain.csv"
+fileNamePath = "/mnt/storage/grid/home/eric/hmm2bert/pullin_parsed_data/embedding_pullin_noDupes_train>100_stratified_domainPiece.pt"
+split = "train"
 
-split_anno_tok((csvfilepath, filenamepath, "train"))
+split_anno_tok(csvFilePath, fileNamePath, split)

@@ -209,7 +209,8 @@ def split_anno_tok(csvfilepath, filenamepath, which_split):  # takes encoded csv
         return print("Please select split by entering \"Train\"/\"train\" or \"Val\"/\"val\"")
 
 
-csvfilepath = f"/mnt/storage/grid/home/eric/hmm2bert/pullin_parsed_data/encoded_parsed_pullin_noDupes>100_withAA_not_domain.csv"
-filenamepath = f"/mnt/storage/grid/home/eric/hmm2bert/pullin_parsed_data/embedding_pullin_noDupes_val>100_stratified_domainPiece.pt"
+csvFilePath = "/mnt/storage/grid/home/eric/hmm2bert/pullin_parsed_data/encoded_parsed_pullin_noDupes>100_withAA_not_domain.csv"
+fileNamePath = "/mnt/storage/grid/home/eric/hmm2bert/pullin_parsed_data/embedding_pullin_noDupes_val>100_stratified_domainPiece.pt"
+split = "val"
 
-split_anno_tok((csvfilepath, filenamepath, "val"))
+split_anno_tok(csvFilePath, fileNamePath, split)
