@@ -30,6 +30,20 @@ class TokenDataset(torch.utils.data.Dataset):
         return (len(self.labels))
 
 
+class newDataset(torch.utils.data.Dataset):
+    def __init__(self, dataframe):
+        self.encodings = {"input_ids": dataframe["input_ids"], "token_type_ids": dataframe["token_type_ids"],
+                          "attention_mask": dataframe["attention_mask"]}
+        self.labels = {"labels": dataframe["labels"]}
+
+    def __getitem__(self, idx):
+        item = {"input_ids": self.encodings["input_ids"][idx], "token_type_ids": self.encodings["token_type_ids"][idx],
+                "attention_mask": self.encodings["attention_mask"][idx], "labels": self.labels["labels"][idx]}
+        return item
+
+    def __len__(self):
+        return (len(self.labels["labels"]))
+
 class BertTokClassification(pl.LightningModule, ABC):
     def __init__(
             self,
@@ -54,7 +68,7 @@ class BertTokClassification(pl.LightningModule, ABC):
         input_ids = batch["input_ids"]
         attention_mask = batch["attention_mask"]
         labels = batch["labels"]
-        outputs = self(input_ids=input_ids.to(self.device), attention_mask=attention_mask.to(self.device), labels=labels.to(self.device))
+        outputs = self(input_ids=input_ids.to(self.device), attention_mask=attention_mask.to(self.device), labels=labels.to(self.device, dtype=torch.int64))
         loss = outputs.loss
         self.log(
             "train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True
@@ -65,7 +79,7 @@ class BertTokClassification(pl.LightningModule, ABC):
         input_ids = batch["input_ids"]
         attention_mask = batch["attention_mask"]
         labels = batch["labels"]
-        outputs = self(input_ids=input_ids.to(self.device), attention_mask=attention_mask.to(self.device), labels=labels.to(self.device))
+        outputs = self(input_ids=input_ids.to(self.device), attention_mask=attention_mask.to(self.device), labels=labels.to(self.device, dtype=torch.int64))
         loss = outputs.loss
         self.log(
             "val_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True
@@ -134,13 +148,13 @@ def main():
     num_cpu = 16
     lr = '1e-7.473'
     wandb_name = f"pullin-{lr}-mxepch10"
-    num_labels = 430
+    num_labels = 285
     max_epch = 10
     gpus = '0, 1'
 
     data_folder = "pullin_parsed_data"
-    strat_train_name = "embedding_pullin_train>100_stratified.pt"
-    strat_val_name = "embedding_pullin_val>100_stratified.pt"
+    strat_train_name = "embedding_pullin_train>100_stratified_withAA_not_domain_notebook.pt"
+    strat_val_name = "embedding_pullin_val>100_stratified_withAA_not_domain_notebook.pt"
 
     model_folder = "pullin"
     save_checkpoint_name = "pullin_max_epch10.ckpt"
