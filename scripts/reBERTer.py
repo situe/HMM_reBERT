@@ -480,6 +480,226 @@ def evaluate_positions(true, predict, buffer=6):
     else:
         return [trueStart, trueStop, predStart, predStop]
 
+def evaluate_positions_decay(true, predict, buffer=6):
+
+    def check_ahead(position, predict, buffer):
+        ret = True
+        for i in range(1, buffer + 1):
+            if predict[position + i] != 0:
+                ret = False
+                break
+        return ret
+
+    switch1 = True
+    switch2 = True
+    predStart = None
+    trueStart = None
+    predStop = None
+    trueStop = None
+
+
+    for i in range(len(true)):
+
+        if true[i] != 0 and switch2:
+            switch2 = False
+            trueStart = i
+        #                 print(f"REAL START POSITION {trueStart}")
+
+        if predict[i] != 0 and switch1:
+            switch1 = False
+            predStart = i
+        #                 print(f"PRED START POSITION {predStart}")
+
+        if true[i] == 0 and switch2 == False:
+            switch2 = None
+            trueStop = i - 1
+        #                 print(f"REAL STOP POSITION {trueStop}")
+
+        if predict[i] == 0 and switch1 == False:
+            if i < ((len(true) - 1) - buffer):
+                checkAhead = check_ahead(i, predict, buffer)
+                if checkAhead:
+                    switch1 = None
+                    predStop = i - 1
+                else:
+                    switch1 = False
+
+            else:  # how to make it a decaying buffer near end?
+                difference = i - ((len(true) - 1) - buffer)
+                diff = buffer - difference
+                checkAhead = check_ahead(i, predict, diff)
+                if checkAhead:
+                    switch1 = None
+                    predStop = i - 1
+                else:
+                    switch1 = False
+
+
+    if switch2 == False and trueStop == None:
+        trueStop = len(true) - 1
+
+    if switch1 == False and predStop == None:
+        predStop = len(predict) - 1
+
+    if trueStart == None and switch2 == True:
+        print("HAAAAAAAAAAAAAAAAAAA NO DOMAIN")
+        print(trueStart, trueStop, predStart, predStop)
+        return False
+    else:
+        return [trueStart, trueStop, predStart, predStop]
+
+def metric_extractor_decay500(strat_test_path, pipeline):
+    meatpipe = pipeline
+    strat_test = strat_test_path
+    # parses through each sample and adds metrics to dict which is then appended to a list
+    masterList = []
+    sampleCounter = 0
+
+    for i in range(len(strat_test)):
+        labelDict = {}
+        sampleDict = {}
+        pred_labels = []
+        tempList = meatpipe(strat_test.iloc[i]["sequence"], max_length=512)
+        label = strat_test.iloc[i]["labels"]
+        sequence = strat_test.iloc[i]["sequence"]
+        start = strat_test.iloc[i]["start"]
+        stop = strat_test.iloc[i]["stop"]
+        true_labels = labelLabel(label, sequence, start, stop)
+
+        for aminoDict in tempList:
+            labelNum = aminoDict["entity"]
+            labelNum = int(labelNum[6:])
+            pred_labels.append(labelNum)
+
+        positions = evaluate_positions_decay(true_labels, pred_labels, 500)
+        if type(positions) != list:
+            print("DROPPED")
+            continue
+        else:
+            trueStart = positions[0]
+            trueStop = positions[1]
+            predStart = positions[2]
+            predStop = positions[3]
+
+        eval_metrics = domainAcc(true_labels, pred_labels)
+        domainLabelAcc = eval_metrics[0]
+        notDomainLabelAcc = eval_metrics[1]
+        fullDomainAcc = eval_metrics[2]
+
+        items = matching_labels(true_labels, pred_labels, trueStart, trueStop) #change eval_start, eval_stop
+        trueItems = items[0]
+        predDomItems = items[1]
+        predNotDomItems = items[2]
+
+        if notDomainLabelAcc < 0:
+            print("NEGATIVE VALUE")
+        #         print(f"{notDomainLabelAcc} = {eval_metrics[5]} / {eval_metrics[6]}")
+        #         print(start, stop)
+        #         print(trueStart, trueStop)
+        #         print(label)
+
+        sampleDict["fullDomain_accuracy"] = float(fullDomainAcc)
+        sampleDict["domain_accuracy"] = float(domainLabelAcc)
+        sampleDict["notDomain_accuracy"] = float(notDomainLabelAcc)
+        sampleDict["true_labels"] = list(trueItems)
+        sampleDict["predDomain_labels"] = list(predDomItems)
+        sampleDict["predNotDomain_labels"] = list(predNotDomItems)
+        sampleDict["trueStart"] = trueStart
+        sampleDict["trueStop"] = trueStop
+        sampleDict["predStart"] = float(predStart)
+        sampleDict["predStop"] = float(predStop)
+
+        for i in trueItems:
+            if i != 0:
+                attentionLabel = str(i)
+
+        labelDict[attentionLabel] = sampleDict
+
+        masterList.append(labelDict)
+
+        sampleCounter += 1
+        if sampleCounter % 100 == 0:
+            print(f"{sampleCounter} / {len(strat_test)}")
+    #     print(sampleDict)
+    #     print("=============================")
+    return masterList
+
+def metric_extractor_decay36(strat_test_path, pipeline):
+    meatpipe = pipeline
+    strat_test = strat_test_path
+    # parses through each sample and adds metrics to dict which is then appended to a list
+    masterList = []
+    sampleCounter = 0
+
+    for i in range(len(strat_test)):
+        labelDict = {}
+        sampleDict = {}
+        pred_labels = []
+        tempList = meatpipe(strat_test.iloc[i]["sequence"], max_length=512)
+        label = strat_test.iloc[i]["labels"]
+        sequence = strat_test.iloc[i]["sequence"]
+        start = strat_test.iloc[i]["start"]
+        stop = strat_test.iloc[i]["stop"]
+        true_labels = labelLabel(label, sequence, start, stop)
+
+        for aminoDict in tempList:
+            labelNum = aminoDict["entity"]
+            labelNum = int(labelNum[6:])
+            pred_labels.append(labelNum)
+
+        positions = evaluate_positions_decay(true_labels, pred_labels, 36)
+        if type(positions) != list:
+            print("DROPPED")
+            continue
+        else:
+            trueStart = positions[0]
+            trueStop = positions[1]
+            predStart = positions[2]
+            predStop = positions[3]
+
+        eval_metrics = domainAcc(true_labels, pred_labels)
+        domainLabelAcc = eval_metrics[0]
+        notDomainLabelAcc = eval_metrics[1]
+        fullDomainAcc = eval_metrics[2]
+
+        items = matching_labels(true_labels, pred_labels, trueStart, trueStop) #change eval_start, eval_stop
+        trueItems = items[0]
+        predDomItems = items[1]
+        predNotDomItems = items[2]
+
+        if notDomainLabelAcc < 0:
+            print("NEGATIVE VALUE")
+        #         print(f"{notDomainLabelAcc} = {eval_metrics[5]} / {eval_metrics[6]}")
+        #         print(start, stop)
+        #         print(trueStart, trueStop)
+        #         print(label)
+
+        sampleDict["fullDomain_accuracy"] = float(fullDomainAcc)
+        sampleDict["domain_accuracy"] = float(domainLabelAcc)
+        sampleDict["notDomain_accuracy"] = float(notDomainLabelAcc)
+        sampleDict["true_labels"] = list(trueItems)
+        sampleDict["predDomain_labels"] = list(predDomItems)
+        sampleDict["predNotDomain_labels"] = list(predNotDomItems)
+        sampleDict["trueStart"] = trueStart
+        sampleDict["trueStop"] = trueStop
+        sampleDict["predStart"] = float(predStart)
+        sampleDict["predStop"] = float(predStop)
+
+        for i in trueItems:
+            if i != 0:
+                attentionLabel = str(i)
+
+        labelDict[attentionLabel] = sampleDict
+
+        masterList.append(labelDict)
+
+        sampleCounter += 1
+        if sampleCounter % 100 == 0:
+            print(f"{sampleCounter} / {len(strat_test)}")
+    #     print(sampleDict)
+    #     print("=============================")
+    return masterList
+
 #default buffer length of 6
 def metric_extractor(strat_test_path, pipeline):
     meatpipe = pipeline
@@ -633,380 +853,7 @@ def metric_extractor_9(strat_test_path, pipeline):
     #     print("=============================")
     return masterList
 
-def metric_extractor_12(strat_test_path, pipeline):
-    meatpipe = pipeline
-    strat_test = strat_test_path
-    # parses through each sample and adds metrics to dict which is then appended to a list
-    masterList = []
-    sampleCounter = 0
 
-    for i in range(len(strat_test)):
-        labelDict = {}
-        sampleDict = {}
-        pred_labels = []
-        tempList = meatpipe(strat_test.iloc[i]["sequence"], max_length=512)
-        label = strat_test.iloc[i]["labels"]
-        sequence = strat_test.iloc[i]["sequence"]
-        start = strat_test.iloc[i]["start"]
-        stop = strat_test.iloc[i]["stop"]
-        true_labels = labelLabel(label, sequence, start, stop)
-
-        for aminoDict in tempList:
-            labelNum = aminoDict["entity"]
-            labelNum = int(labelNum[6:])
-            pred_labels.append(labelNum)
-
-        positions = evaluate_positions(true_labels, pred_labels, 12)
-        if type(positions) != list:
-            print("DROPPED")
-            continue
-        else:
-            trueStart = positions[0]
-            trueStop = positions[1]
-            predStart = positions[2]
-            predStop = positions[3]
-
-        eval_metrics = domainAcc(true_labels, pred_labels)
-        domainLabelAcc = eval_metrics[0]
-        notDomainLabelAcc = eval_metrics[1]
-        fullDomainAcc = eval_metrics[2]
-
-        items = matching_labels(true_labels, pred_labels, trueStart, trueStop)
-        trueItems = items[0]
-        predDomItems = items[1]
-        predNotDomItems = items[2]
-
-        if notDomainLabelAcc < 0:
-            print("NEGATIVE VALUE")
-        #         print(f"{notDomainLabelAcc} = {eval_metrics[5]} / {eval_metrics[6]}")
-        #         print(start, stop)
-        #         print(trueStart, trueStop)
-        #         print(label)
-
-        sampleDict["fullDomain_accuracy"] = float(fullDomainAcc)
-        sampleDict["domain_accuracy"] = float(domainLabelAcc)
-        sampleDict["notDomain_accuracy"] = float(notDomainLabelAcc)
-        sampleDict["true_labels"] = list(trueItems)
-        sampleDict["predDomain_labels"] = list(predDomItems)
-        sampleDict["predNotDomain_labels"] = list(predNotDomItems)
-        sampleDict["trueStart"] = trueStart
-        sampleDict["trueStop"] = trueStop
-        sampleDict["predStart"] = float(predStart)
-        sampleDict["predStop"] = float(predStop)
-
-        for i in trueItems:
-            if i != 0:
-                attentionLabel = str(i)
-
-        labelDict[attentionLabel] = sampleDict
-
-        masterList.append(labelDict)
-
-        sampleCounter += 1
-        if sampleCounter % 100 == 0:
-            print(f"{sampleCounter} / {len(strat_test)}")
-    #     print(sampleDict)
-    #     print("=============================")
-    return masterList
-
-def metric_extractor_18(strat_test_path, pipeline):
-    meatpipe = pipeline
-    strat_test = strat_test_path
-    # parses through each sample and adds metrics to dict which is then appended to a list
-    masterList = []
-    sampleCounter = 0
-
-    for i in range(len(strat_test)):
-        labelDict = {}
-        sampleDict = {}
-        pred_labels = []
-        tempList = meatpipe(strat_test.iloc[i]["sequence"], max_length=512)
-        label = strat_test.iloc[i]["labels"]
-        sequence = strat_test.iloc[i]["sequence"]
-        start = strat_test.iloc[i]["start"]
-        stop = strat_test.iloc[i]["stop"]
-        true_labels = labelLabel(label, sequence, start, stop)
-
-        for aminoDict in tempList:
-            labelNum = aminoDict["entity"]
-            labelNum = int(labelNum[6:])
-            pred_labels.append(labelNum)
-
-        positions = evaluate_positions(true_labels, pred_labels, 18)
-        if type(positions) != list:
-            print("DROPPED")
-            continue
-        else:
-            trueStart = positions[0]
-            trueStop = positions[1]
-            predStart = positions[2]
-            predStop = positions[3]
-
-        eval_metrics = domainAcc(true_labels, pred_labels)
-        domainLabelAcc = eval_metrics[0]
-        notDomainLabelAcc = eval_metrics[1]
-        fullDomainAcc = eval_metrics[2]
-
-        items = matching_labels(true_labels, pred_labels, trueStart, trueStop) #change eval_start, eval_stop
-        trueItems = items[0]
-        predDomItems = items[1]
-        predNotDomItems = items[2]
-
-        if notDomainLabelAcc < 0:
-            print("NEGATIVE VALUE")
-        #         print(f"{notDomainLabelAcc} = {eval_metrics[5]} / {eval_metrics[6]}")
-        #         print(start, stop)
-        #         print(trueStart, trueStop)
-        #         print(label)
-
-        sampleDict["fullDomain_accuracy"] = float(fullDomainAcc)
-        sampleDict["domain_accuracy"] = float(domainLabelAcc)
-        sampleDict["notDomain_accuracy"] = float(notDomainLabelAcc)
-        sampleDict["true_labels"] = list(trueItems)
-        sampleDict["predDomain_labels"] = list(predDomItems)
-        sampleDict["predNotDomain_labels"] = list(predNotDomItems)
-        sampleDict["trueStart"] = trueStart
-        sampleDict["trueStop"] = trueStop
-        sampleDict["predStart"] = float(predStart)
-        sampleDict["predStop"] = float(predStop)
-
-        for i in trueItems:
-            if i != 0:
-                attentionLabel = str(i)
-
-        labelDict[attentionLabel] = sampleDict
-
-        masterList.append(labelDict)
-
-        sampleCounter += 1
-        if sampleCounter % 100 == 0:
-            print(f"{sampleCounter} / {len(strat_test)}")
-    #     print(sampleDict)
-    #     print("=============================")
-    return masterList
-
-def metric_extractor_24(strat_test_path, pipeline):
-    meatpipe = pipeline
-    strat_test = strat_test_path
-    # parses through each sample and adds metrics to dict which is then appended to a list
-    masterList = []
-    sampleCounter = 0
-
-    for i in range(len(strat_test)):
-        labelDict = {}
-        sampleDict = {}
-        pred_labels = []
-        tempList = meatpipe(strat_test.iloc[i]["sequence"], max_length=512)
-        label = strat_test.iloc[i]["labels"]
-        sequence = strat_test.iloc[i]["sequence"]
-        start = strat_test.iloc[i]["start"]
-        stop = strat_test.iloc[i]["stop"]
-        true_labels = labelLabel(label, sequence, start, stop)
-
-        for aminoDict in tempList:
-            labelNum = aminoDict["entity"]
-            labelNum = int(labelNum[6:])
-            pred_labels.append(labelNum)
-
-        positions = evaluate_positions(true_labels, pred_labels, 24)
-        if type(positions) != list:
-            print("DROPPED")
-            continue
-        else:
-            trueStart = positions[0]
-            trueStop = positions[1]
-            predStart = positions[2]
-            predStop = positions[3]
-
-        eval_metrics = domainAcc(true_labels, pred_labels)
-        domainLabelAcc = eval_metrics[0]
-        notDomainLabelAcc = eval_metrics[1]
-        fullDomainAcc = eval_metrics[2]
-
-        items = matching_labels(true_labels, pred_labels, trueStart, trueStop) #change eval_start, eval_stop
-        trueItems = items[0]
-        predDomItems = items[1]
-        predNotDomItems = items[2]
-
-        if notDomainLabelAcc < 0:
-            print("NEGATIVE VALUE")
-        #         print(f"{notDomainLabelAcc} = {eval_metrics[5]} / {eval_metrics[6]}")
-        #         print(start, stop)
-        #         print(trueStart, trueStop)
-        #         print(label)
-
-        sampleDict["fullDomain_accuracy"] = float(fullDomainAcc)
-        sampleDict["domain_accuracy"] = float(domainLabelAcc)
-        sampleDict["notDomain_accuracy"] = float(notDomainLabelAcc)
-        sampleDict["true_labels"] = list(trueItems)
-        sampleDict["predDomain_labels"] = list(predDomItems)
-        sampleDict["predNotDomain_labels"] = list(predNotDomItems)
-        sampleDict["trueStart"] = trueStart
-        sampleDict["trueStop"] = trueStop
-        sampleDict["predStart"] = float(predStart)
-        sampleDict["predStop"] = float(predStop)
-
-        for i in trueItems:
-            if i != 0:
-                attentionLabel = str(i)
-
-        labelDict[attentionLabel] = sampleDict
-
-        masterList.append(labelDict)
-
-        sampleCounter += 1
-        if sampleCounter % 100 == 0:
-            print(f"{sampleCounter} / {len(strat_test)}")
-    #     print(sampleDict)
-    #     print("=============================")
-    return masterList
-
-def evaluate_positions_1(true, predict, buffer=6):
-
-    def check_ahead(position, predict, buffer):
-        ret = True
-        for i in range(1, buffer + 1):
-            if predict[position + i] != 0:
-                ret = False
-                break
-        return ret
-
-    switch1 = True
-    switch2 = True
-    predStart = None
-    trueStart = None
-    predStop = None
-    trueStop = None
-
-
-    for i in range(len(true)):
-
-        if true[i] != 0 and switch2:
-            switch2 = False
-            trueStart = i
-        #                 print(f"REAL START POSITION {trueStart}")
-
-        if predict[i] != 0 and switch1:
-            switch1 = False
-            predStart = i
-        #                 print(f"PRED START POSITION {predStart}")
-
-        if true[i] == 0 and switch2 == False:
-            switch2 = None
-            trueStop = i - 1
-        #                 print(f"REAL STOP POSITION {trueStop}")
-
-        if predict[i] == 0 and switch1 == False:
-            # switch1 = None
-            # predStop = i - 1
-# =======================================================
-            if i < ((len(true) - 1) - buffer):
-                checkAhead = check_ahead(i, predict, buffer)
-                if checkAhead:
-                    switch1 = None
-                    predStop = i - 1
-                else:
-                    switch1 = False
-
-            else:  # how to make it a decaying buffer near end?
-                difference = i - ((len(true) - 1) - buffer)
-                diff = buffer - difference
-                checkAhead = check_ahead(i, predict, diff)
-                if checkAhead:
-                    switch1 = None
-                    predStop = i - 1
-                else:
-                    switch1 = False
-
-
-    if switch2 == False and trueStop == None:
-        trueStop = len(true) - 1
-
-    if switch1 == False and predStop == None:
-        predStop = len(predict) - 1
-
-    if trueStart == None and switch2 == True:
-        print("HAAAAAAAAAAAAAAAAAAA NO DOMAIN")
-        print(trueStart, trueStop, predStart, predStop)
-        return False
-    else:
-        return [trueStart, trueStop, predStart, predStop]
-
-def metric_extractor_1(strat_test_path, pipeline):
-    meatpipe = pipeline
-    strat_test = strat_test_path
-    # parses through each sample and adds metrics to dict which is then appended to a list
-    masterList = []
-    sampleCounter = 0
-
-    for i in range(len(strat_test)):
-        labelDict = {}
-        sampleDict = {}
-        pred_labels = []
-        tempList = meatpipe(strat_test.iloc[i]["sequence"], max_length=512)
-        label = strat_test.iloc[i]["labels"]
-        sequence = strat_test.iloc[i]["sequence"]
-        start = strat_test.iloc[i]["start"]
-        stop = strat_test.iloc[i]["stop"]
-        true_labels = labelLabel(label, sequence, start, stop)
-
-        for aminoDict in tempList:
-            labelNum = aminoDict["entity"]
-            labelNum = int(labelNum[6:])
-            pred_labels.append(labelNum)
-
-        positions = evaluate_positions_1(true_labels, pred_labels)
-        if type(positions) != list:
-            print("DROPPED")
-            continue
-        else:
-            trueStart = positions[0]
-            trueStop = positions[1]
-            predStart = positions[2]
-            predStop = positions[3]
-
-        eval_metrics = domainAcc(true_labels, pred_labels)
-        domainLabelAcc = eval_metrics[0]
-        notDomainLabelAcc = eval_metrics[1]
-        fullDomainAcc = eval_metrics[2]
-
-        items = matching_labels(true_labels, pred_labels, trueStart, trueStop) #change eval_start, eval_stop
-        trueItems = items[0]
-        predDomItems = items[1]
-        predNotDomItems = items[2]
-
-        if notDomainLabelAcc < 0:
-            print("NEGATIVE VALUE")
-        #         print(f"{notDomainLabelAcc} = {eval_metrics[5]} / {eval_metrics[6]}")
-        #         print(start, stop)
-        #         print(trueStart, trueStop)
-        #         print(label)
-
-        sampleDict["fullDomain_accuracy"] = float(fullDomainAcc)
-        sampleDict["domain_accuracy"] = float(domainLabelAcc)
-        sampleDict["notDomain_accuracy"] = float(notDomainLabelAcc)
-        sampleDict["true_labels"] = list(trueItems)
-        sampleDict["predDomain_labels"] = list(predDomItems)
-        sampleDict["predNotDomain_labels"] = list(predNotDomItems)
-        sampleDict["trueStart"] = trueStart
-        sampleDict["trueStop"] = trueStop
-        sampleDict["predStart"] = float(predStart)
-        sampleDict["predStop"] = float(predStop)
-
-        for i in trueItems:
-            if i != 0:
-                attentionLabel = str(i)
-
-        labelDict[attentionLabel] = sampleDict
-
-        masterList.append(labelDict)
-
-        sampleCounter += 1
-        if sampleCounter % 100 == 0:
-            print(f"{sampleCounter} / {len(strat_test)}")
-    #     print(sampleDict)
-    #     print("=============================")
-    return masterList
 
 def group_labels(masterList):
     # parses through masterList to group the metrics of each sample by label for easier evaluation

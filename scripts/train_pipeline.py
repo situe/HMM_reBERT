@@ -12,17 +12,17 @@ def main():
     #######################################
     num_cpu = 16
     lr = '6.4937e-05'
-    wandb_name = f"pullin>1000-{lr}-mxepch10"
-    num_labels = 61
+    wandb_name = f"pullin>1000_whiteSpace-{lr}-mxepch10"
+    num_labels = 60
     max_epch = 10
     batch_size = 4
-    gpus = '0, 1, 2, 3'
+    gpus = '0, 1'
 
 
     #load data file paths
     data_folder = "pullin_parsed_data"
-    strat_train_name = "embedding_pullin_noDupes_train>1000_stratified_domainPiece.pt"
-    strat_val_name = "embedding_pullin_noDupes_val>1000_stratified_domainPiece.pt"
+    strat_train_name = "embedding_pullin_noDupes_whiteSpace_train>1000_stratified_domainPiece.pt"
+    strat_val_name = "embedding_pullin_noDupes_whiteSpace_val>1000_stratified_domainPiece.pt"
 
     #checkpoint save folder
     model_folder = "pullin"
@@ -56,7 +56,7 @@ def main():
     checkpoint_callback = ModelCheckpoint(
         monitor='val_loss_epoch',
         dirpath=f'/mnt/storage/grid/home/eric/hmm2bert/models/{model_folder}',
-        filename='pullin>1000_best_loss',
+        filename='pullin>1000_whiteSpace_best_loss',
         save_top_k=3,
         mode='min'
     )
