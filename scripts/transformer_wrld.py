@@ -2,8 +2,6 @@ from cybertron.data_modules.PRISM.HMMDataModule import HMMDataModule
 from multiprocessing import freeze_support
 from cybertron.pretrained_models.ProtBert import ProtBert
 from autobots.lightning_modules.Bert import BertTokenClassification
-from autobots.optimizers.preconfigured import get_adafactor
-from autobots.optimizers.preconfigured import get_adamw
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -12,15 +10,26 @@ from torchmetrics import Accuracy
 from torch.nn import ModuleDict
 import os
 from transformers import DataCollatorForTokenClassification
+from autobots.optimizers.preconfigured import get_adamw
+from autobots.optimizers.preconfigured import get_deepspeed_adamw
+from pytorch_lightning.plugins import DeepSpeedPlugin
+from autobots.optimizers.preconfigured import get_fused_adam
+from autobots.optimizers.preconfigured import get_adafactor
+import deepspeed
 
 # Configure Environment
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["MKL_THREADING_LAYER"] = "GNU"
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1, 2, 3, 4, 5, 6, 7"
+os.environ["TORCH_CUDA_ARCH_LIST"] = "7.5"
+os.environ["DS_BUILD_CPU_ADAM"] = "1"
+os.environ["DS_BUILD_UTILS"] = "1"
+os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
 wandb_name = f"transformer_wlrd_test"
-gpu_ids = [3, 4]
+gpu_ids = [6, 7]
+
 
 def train():
     """
@@ -35,8 +44,8 @@ def train():
     dm = HMMDataModule(
         batch_size=2,
         label_tokens=True,
-        max_length=2048,
-        num_workers=16,
+        max_length=512,
+        num_workers=32,
         persistent_workers=True,
     )
     dm.collator = DataCollatorForTokenClassification(
@@ -76,28 +85,30 @@ def train():
     # setup metrics
     accuracy = Accuracy(
         num_classes=dm.label_tokenizer.vocab_size,
-        threshold=0.5,
         average="weighted",
-        subset_accuracy=False,
-        mdmc_average="samplewise",
-    )
 
+    )  # subset_accuracy=False, mdmc_average="samplewise", threshold=0.5, average="weighted",
 
     train_metrics = ModuleDict({"accuracy": accuracy})
-
 
     # instantiate a pytorch lightning module
     model = BertTokenClassification(
         config=config,
         ignore_index=-100,
-        optimizer_fn=get_adafactor,
+        optimizer_fn=get_deepspeed_adamw,
         train_metrics=train_metrics,
         val_metrics=train_metrics,
     )
 
+    # setup deepspeed plugin
+    stage3 = DeepSpeedPlugin(
+        stage=3,
+        offload_optimizer=True,
+        offload_parameters=True,
+    )
+
     # replace with pretrained protbert base and clean up
     model.model.model = ProtBert()
-
 
     # setup callbacks
     checkpoint_callback = ModelCheckpoint(
@@ -113,15 +124,18 @@ def train():
         max_epochs=10,
         callbacks=[checkpoint_callback],
         gpus=gpu_ids,
-        accelerator="ddp",
+        accelerator="ddp2",
         auto_lr_find=True,
         logger=wandb_logger,
+        plugins=stage3,
+        precision=16
     )
 
     trainer.fit(model, dm)
     model.model.save_pretrained("/mnt/storage/grid/home/eric/hmm2bert/work/transformer_wrld/models")
     print("Finished Training")
     return 0
+
 
 if __name__ == "__main__":
     freeze_support()
