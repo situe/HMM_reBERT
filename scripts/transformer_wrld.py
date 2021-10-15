@@ -25,11 +25,11 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1, 2, 3, 4, 5, 6, 7"
 os.environ["TORCH_CUDA_ARCH_LIST"] = "7.5"
 os.environ["DS_BUILD_CPU_ADAM"] = "1"
 os.environ["DS_BUILD_UTILS"] = "1"
-os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+# os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
 wandb_name = f"transformer_wlrd_test"
 gpu_ids = [6, 7]
-
+max_length = 512
 
 def train():
     """
@@ -42,9 +42,9 @@ def train():
 
     # prepare dataset for fine-tuning
     dm = HMMDataModule(
-        batch_size=2,
+        batch_size=4,
         label_tokens=True,
-        max_length=512,
+        max_length=max_length,
         num_workers=32,
         persistent_workers=True,
     )
@@ -53,7 +53,8 @@ def train():
         label_pad_token_id=(
             dm.label_tokenizer.pad_token_id if not None else -100
         ),
-        padding="longest",
+        padding="max_length",
+        max_length=max_length,
     )
 
     dm.setup(stage="fit")
@@ -95,7 +96,7 @@ def train():
     model = BertTokenClassification(
         config=config,
         ignore_index=-100,
-        optimizer_fn=get_deepspeed_adamw,
+        optimizer_fn=get_adamw,
         train_metrics=train_metrics,
         val_metrics=train_metrics,
     )
@@ -107,7 +108,7 @@ def train():
         offload_parameters=True,
     )
 
-    # replace with pretrained protbert base and clean up
+    # replace with pretrained protbert base
     model.model.model = ProtBert()
 
     # setup callbacks
@@ -124,12 +125,12 @@ def train():
         max_epochs=10,
         callbacks=[checkpoint_callback],
         gpus=gpu_ids,
-        accelerator="ddp2",
+        accelerator="ddp",
         auto_lr_find=True,
         logger=wandb_logger,
-        plugins=stage3,
-        precision=16
-    )
+        precision=16,
+
+    ) #        plugins=stage3,
 
     trainer.fit(model, dm)
     model.model.save_pretrained("/mnt/storage/grid/home/eric/hmm2bert/work/transformer_wrld/models")
