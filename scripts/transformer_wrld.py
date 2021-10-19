@@ -21,13 +21,13 @@ import deepspeed
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["MKL_THREADING_LAYER"] = "GNU"
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1, 2, 3, 4, 5, 6, 7"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1, 2, 3, 4, 5, 6, 7"
 os.environ["TORCH_CUDA_ARCH_LIST"] = "7.5"
 os.environ["DS_BUILD_CPU_ADAM"] = "1"
 os.environ["DS_BUILD_UTILS"] = "1"
 # os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
-wandb_name = f"transformer_wlrd_test"
+wandb_name = f"transformer_wrld_test"
 gpu_ids = [6, 7]
 max_length = 512
 
@@ -42,7 +42,7 @@ def train():
 
     # prepare dataset for fine-tuning
     dm = HMMDataModule(
-        batch_size=4,
+        batch_size=2,
         label_tokens=True,
         max_length=max_length,
         num_workers=32,
@@ -96,7 +96,7 @@ def train():
     model = BertTokenClassification(
         config=config,
         ignore_index=-100,
-        optimizer_fn=get_adamw,
+        optimizer_fn=get_deepspeed_adamw,
         train_metrics=train_metrics,
         val_metrics=train_metrics,
     )
@@ -125,15 +125,15 @@ def train():
         max_epochs=10,
         callbacks=[checkpoint_callback],
         gpus=gpu_ids,
-        accelerator="ddp",
+        accelerator="ddp2",
         auto_lr_find=True,
         logger=wandb_logger,
         precision=16,
-
+        plugins=stage3,
     ) #        plugins=stage3,
 
     trainer.fit(model, dm)
-    model.model.save_pretrained("/mnt/storage/grid/home/eric/hmm2bert/work/transformer_wrld/models")
+    model.model.save_pretrained("/mnt/storage/grid/home/eric/hmm2bert/work/transformer_wrld_models/models")
     print("Finished Training")
     return 0
 
