@@ -21,14 +21,15 @@ import deepspeed
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["MKL_THREADING_LAYER"] = "GNU"
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
-# os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1, 2, 3, 4, 5, 6, 7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4, 5"
 os.environ["TORCH_CUDA_ARCH_LIST"] = "7.5"
 os.environ["DS_BUILD_CPU_ADAM"] = "1"
 os.environ["DS_BUILD_UTILS"] = "1"
+os.environ["MAX_JOBS"] = "16"
 # os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
 wandb_name = f"transformer_wrld_test"
-gpu_ids = [6, 7]
+gpu_ids = [0, 1]
 max_length = 512
 
 def train():
@@ -105,7 +106,7 @@ def train():
     stage3 = DeepSpeedPlugin(
         stage=3,
         offload_optimizer=True,
-        offload_parameters=True,
+        offload_parameters=False,
     )
 
     # replace with pretrained protbert base
@@ -125,7 +126,7 @@ def train():
         max_epochs=10,
         callbacks=[checkpoint_callback],
         gpus=gpu_ids,
-        accelerator="ddp2",
+        accelerator="ddp",
         auto_lr_find=True,
         logger=wandb_logger,
         precision=16,
