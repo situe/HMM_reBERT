@@ -75,7 +75,7 @@ def train():
     t5config = T5Config(
         vocab_size=len(dm.tokenizer.get_vocab()),
         d_model=1024,
-        d_kv=32, #must be d_model // num_heads (og was 126) <-- not sure if theres something special or what
+        d_kv=126, #must be d_model // num_heads = 32 (og was 126) <-- not sure if theres something special or what
         d_ff=16384,
         num_layers=24,
         num_heads=32,
