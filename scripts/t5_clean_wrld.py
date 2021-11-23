@@ -85,6 +85,9 @@ def train():
         initializer_factor=1.0,
         eos_token_id=dm.tokenizer.eos_token_id,
         pad_token_id=dm.tokenizer.pad_token_id,
+        hidden_dropout_prob=0.8,
+        num_labels=dm.label_tokenizer.vocab_size,
+
     ) #hidden_dropout_prob=0.8, #why is it asking for this
 
     #crf head for token classification
@@ -125,6 +128,7 @@ def train():
         val_metrics=train_metrics,
         ignore_index=-100
     )
+
 
 
     # setup deepspeed plugin
